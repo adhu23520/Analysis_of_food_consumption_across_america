@@ -1,0 +1,291 @@
+---
+title: "project_1"
+author: "Kuldeep Vishal Choksi"
+date: "2024-04-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r LOADING}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+```{r data_loading}
+
+
+# Suppose your headers are at row 3
+data <- read_excel("food_table1.xlsx")
+colnames(data)
+```
+```{r extra_food_type}
+library(dplyr)
+# Load the necessary library
+library(dplyr)
+
+# Assuming 'data' is already loaded and contains the columns you are referring to
+# Ensure column names are properly referenced, especially if they contain spaces
+data <- rename(data, 'Food Group' = 'Food Group')
+
+# Filtering data and handling NA values
+filtered_data <- data %>%
+  select('Food Group', Total_15_16, Total_17_18) %>%
+  filter('Food Group' %in% c("Dairy", "Fruit", "Vegetables", "Grains", "Protein Foods")) %>%
+  drop_na()
+
+# Aggregating data to calculate averages
+aggregated_data <- filtered_data %>%
+  group_by('Food Group') %>%
+  summarise(
+    Avg_Consumption_15_16 = mean(Total_15_16, na.rm = TRUE),
+    Avg_Consumption_17_18 = mean(Total_17_18, na.rm = TRUE)
+  )
+
+# Calculating standard deviations
+error_data <- filtered_data %>%
+  group_by('Food Group') %>%
+  summarise(
+    SD_15_16 = sd(Total_15_16, na.rm = TRUE),
+    SD_17_18 = sd(Total_17_18, na.rm = TRUE)
+  )
+```
+
+```{r preprocessing}
+# Convert columns that should be numeric but are characters because of NAs or other issues
+numeric_columns <- c("Total_15_16", "At home_15_16", "Total_15_16_away", "Restaurant_15_16_away", "Fast food_15_16_away", 
+                     "School_15_16_away", "Other_15_16_away", "Total_17_18", "At home_17_18", "Total_17_18_away", 
+                     "Restaurant_17_18_away", "Fast food_17_18_away", "School_17_18_away", "Other_17_18_away")
+
+data[numeric_columns] <- lapply(data[numeric_columns], function(x) as.numeric(as.character(x)))
+
+# Replace "NA" strings with actual NA values
+data[numeric_columns] <- lapply(data[numeric_columns], function(x) ifelse(x == "NA", NA, x))
+
+# Now convert all character columns that should be numeric to numeric
+data[numeric_columns] <- lapply(data[numeric_columns], as.numeric)
+
+# Melt the data to long format
+data_long <- data %>%
+  pivot_longer(
+    cols = -`Food Group`, 
+    names_to = c("Type", "Year", "Location"),
+    names_pattern = "(.*)_?(\\d{2}_\\d{2})_?(.*)",
+    values_drop_na = TRUE
+  ) %>%
+  mutate(
+    Year = ifelse(grepl("15_16", Year), "2015-16", "2017-18"),
+    Location = case_when(
+      Location == "" ~ "Total",
+      TRUE ~ Location
+    )
+  )
+colnames(data_long)
+```
+
+```{r visualization1}
+ggplot(data_long, aes(x = Location, y = value, fill = Type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_grid(`Food Group` ~ Year, scales = "free_y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Food Group Consumption by Location",
+    x = "Location",
+    y = "Average Daily Intake",
+    fill = "Type"
+  ) +
+  scale_fill_brewer(palette = "Set3")
+```
+
+```{r visualization2}
+library(ggplot2)
+# Create a scatter plot
+ggplot(data_long, aes(x = Type, y = value, color = Location, size = value, shape = Year)) +
+  geom_jitter(width = 0.3, height = 0.3, alpha = 0.7) + # Jitter to prevent overplotting
+  facet_wrap(~`Food Group`, scales = "free") + # Facet by 'Food Group'
+  scale_color_brewer(palette = "Set1") + # Nice color palette for locations
+  scale_shape_manual(values = c(15, 17)) + # Shapes for years
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 8)
+  ) +
+  labs(
+    title = "Food Group Consumption Scatter Plot",
+    x = "Type of Consumption",
+    y = "Average Daily Intake",
+    color = "Location",
+    shape = "Year",
+    size = "Average Daily Intake"
+  )
+
+```
+
+```{r visualization3}
+library(ggplot2)
+
+# Boxplot showing distribution of average daily intake for each food group by year and location
+ggplot(data_long, aes(x = `Food Group`, y = value, fill = Year)) +
+  geom_boxplot() +
+  facet_wrap(~Location, scales = "free") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text = element_text(size = 8),
+        legend.position = "bottom") +
+  labs(
+    title = "Distribution of Average Daily Intake by Food Group, Year, and Location",
+    x = "Food Group",
+    y = "Average Daily Intake",
+    fill = "Year"
+  ) +
+  scale_fill_brewer(palette = "Set1")
+
+```
+
+```{r visualization4}
+library(ggplot2)
+library(dplyr)
+
+# Basic Bar Plot of the counts of each Food Group
+ggplot(data_long, aes(x = `Food Group`)) + 
+  geom_bar() + 
+  labs(title = "Count of Records in Each Food Group", x = "Food Group", y = "Count")
+
+# Basic Line Plot for trends over years (assuming Year is continuous)
+ggplot(data_long, aes(x = Year, group = `Food Group`, color = `Food Group`)) + 
+  geom_line(aes(y = value)) + 
+  labs(title = "Trend of Average Daily Intake Over Years", x = "Year", y = "Average Daily Intake")
+
+# Basic Boxplot of value distribution by Location
+ggplot(data_long, aes(x = Location, y = value)) + 
+  geom_boxplot() + 
+  labs(title = "Distribution of Daily Intake by Location", x = "Location", y = "Daily Intake")
+
+# Scatter Plot of Value by Food Group (plotting only the first 100 records for simplicity)
+ggplot(data_long[1:100,], aes(x = `Food Group`, y = value)) + 
+  geom_point() + 
+  labs(title = "Scatter Plot of Daily Intake by Food Group", x = "Food Group", y = "Daily Intake")
+
+# Basic Histogram of Value
+ggplot(data_long, aes(x = value)) + 
+  geom_histogram(bins = 30) + 
+  labs(title = "Histogram of Daily Intake Values", x = "Daily Intake", y = "Frequency")
+
+# Pie Chart of record count by Type - Not recommended for good data visualization practices
+pie_data <- data_long %>%
+  count(Type) %>%
+  mutate(prop = n / sum(n) * 100)
+
+ggplot(pie_data, aes(x = "", y = prop, fill = Type)) + 
+  geom_bar(width = 1, stat = "identity") + 
+  coord_polar("y") + 
+  theme_void() + 
+  labs(fill = "Type", title = "Pie Chart of Record Count by Type")
+
+# Note: Pie charts are generally discouraged in data visualization because they are less readable than other charts.
+
+```
+
+
+```{r modelling}
+library(caret)
+library(randomForest)
+library(glmnet)
+library(e1071)  # For SVR
+
+data_long$Year <- as.factor(data_long$Year)
+data_long$Location <- as.factor(data_long$Location)
+
+# Preparing the formula for the model
+model_formula <- value ~ Type + Year + Location
+
+
+# Splitting the data into training and test sets
+set.seed(123)  # for reproducibility
+index <- createDataPartition(data_long$value, p = 0.8, list = FALSE)
+train_data <- data_long[index, ]
+test_data <- data_long[-index, ]
+
+# Train Lasso Regression
+set.seed(123)
+lasso_model <- train(model_formula, data = train_data, method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 1, lambda = seq(0.001, 0.1, length = 10)))
+
+# Train Ridge Regression
+set.seed(123)
+ridge_model <- train(model_formula, data = train_data, method = "glmnet",
+                     tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001, 0.1, length = 10)))
+
+# Train Elastic Net
+set.seed(123)
+elastic_model <- train(model_formula, data = train_data, method = "glmnet",
+                       tuneGrid = expand.grid(alpha = seq(0, 1, length = 10), lambda = seq(0.001, 0.1, length = 10)))
+
+# Train Support Vector Regression
+set.seed(123)
+svr_model <- train(model_formula, data = train_data, method = "svmRadial")
+
+# Predictions
+predictions <- list(
+  lm = predict(lm_model, test_data),
+  rf = predict(rf_model, test_data),
+  lasso = predict(lasso_model, test_data),
+  ridge = predict(ridge_model, test_data),
+  elastic = predict(elastic_model, test_data),
+  svr = predict(svr_model, test_data)
+)
+
+# Calculate additional metrics for each model
+results <- lapply(predictions, function(pred) {
+  data.frame(
+    RMSE = RMSE(pred, test_data$value),
+    MAE = MAE(pred, test_data$value),
+    R2 = R2(pred, test_data$value)
+  )
+})
+
+# Combine all metrics into a single data frame for comparison
+metrics <- do.call(rbind, results)
+row.names(metrics) <- c("Linear Model", "Random Forest", "Lasso", "Ridge", "Elastic Net", "SVR")
+metrics
+
+```
+
+```{r conclusion}
+
+# To predict on the test set
+test_predictions <- predict(elastic_model, test_data)
+
+# You can add these predictions as a new column to your test data frame to compare
+test_data$predicted_value <- test_predictions
+
+test_data
+
+library(ggplot2)
+
+# Assuming test_data already has the actual 'value' and the 'predicted_value' from your model
+ggplot(test_data, aes(x = value, y = predicted_value)) +
+  geom_point() +  # Scatter plot of actual vs predicted
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +  # Line y=x for reference
+  labs(title = "Actual vs Predicted Values",
+       x = "Actual Average Daily Intake",
+       y = "Predicted Average Daily Intake") +
+  theme_minimal()
+
+# Residuals Plot
+test_data$residuals <- test_data$value - test_data$predicted_value
+ggplot(test_data, aes(x = predicted_value, y = residuals)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "blue") +  # Reference line at y=0
+  geom_point() +  # Plot of residuals
+  labs(title = "Residuals of Predictions",
+       x = "Predicted Average Daily Intake",
+       y = "Residuals") +
+  theme_minimal()
+
+```
